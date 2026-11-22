@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Mail, RefreshCw, Download, CheckCircle2, XCircle, Users, Award, Trash2, X, AlertTriangle, ShieldAlert, Check } from 'lucide-react';
 import { Question } from '../types/quiz';
+import {
+  subscribeSubmissions,
+  subscribeAlerts,
+  fetchSubmissionsFromServer,
+  fetchAlertsFromServer,
+  deleteSubmissionInFirestore,
+  deleteAlertInFirestore,
+  clearAllAlertsInFirestore,
+} from '../firebase';
 
 export interface SubmissionData {
   id: string;
@@ -14,7 +23,7 @@ export interface SubmissionData {
   correctCount: number;
   timeSpentSeconds: number;
   userAnswers: Record<string, number>;
-  topicScores: Record<string, { correct: number; total: number }>;
+  topicScores?: Record<string, { correct: number; total: number }>;
   submittedAt: string;
   targetTeacherEmail: string;
 }
@@ -45,7 +54,7 @@ const TEACHER_EMAIL = 'tp15181234@gmail.com';
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   questions,
   onClose,
-  currentUserEmail = TEACHER_EMAIL,
+  currentUserEmail = '',
 }) => {
   const [submissions, setSubmissions] = useState<SubmissionData[]>([]);
   const [alerts, setAlerts] = useState<UnauthorizedAlert[]>([]);
@@ -74,20 +83,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const handleClearAllAlerts = async () => {
     setIsDeleting(true);
     try {
-      const res = await fetch('/api/alerts/all', {
-        method: 'DELETE',
-        headers: { 'x-user-email': TEACHER_EMAIL },
-      });
-      const data = await res.json();
-      if (data.success) {
-        setAlerts([]);
-        setViewingAlert(null);
-        showToast('외부 반 침입 경고 내역이 모두 비워졌습니다.');
-      } else {
-        showToast(data.error || '알림 비우기에 실패했습니다.');
-      }
+      const ids = alerts.map((a) => a.id);
+      await clearAllAlertsInFirestore(ids);
+      setAlerts([]);
+      setViewingAlert(null);
+      showToast('외부 반 침입 경고 내역이 모두 비워졌습니다.');
     } catch {
-      showToast('네트워크 오류가 발생했습니다.');
+      showToast('알림 비우기 중 오류가 발생했습니다.');
     } finally {
       setIsDeleting(false);
       setShowClearAlertsModal(false);
@@ -100,74 +102,47 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     if (!isAuthorizedTeacher) return;
     setLoading(true);
     try {
-      const cacheBuster = `_t=${Date.now()}`;
-      const [resSub, resAlerts] = await Promise.all([
-        fetch(`/api/submissions?${cacheBuster}`, {
-          headers: {
-            'x-user-email': TEACHER_EMAIL,
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache',
-          },
-          cache: 'no-store',
-        }),
-        fetch(`/api/alerts?${cacheBuster}`, {
-          headers: {
-            'x-user-email': TEACHER_EMAIL,
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache',
-          },
-          cache: 'no-store',
-        })
+      const [subs, alts] = await Promise.all([
+        fetchSubmissionsFromServer(),
+        fetchAlertsFromServer(),
       ]);
-      let dataSub: any = null;
-      let dataAlerts: any = null;
-
-      try {
-        if (resSub && resSub.ok) {
-          dataSub = await resSub.json();
-        } else {
-          const fallbackSub = await fetch(`/submissions?${cacheBuster}`, {
-            headers: { 'x-user-email': TEACHER_EMAIL, 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
-            cache: 'no-store',
-          });
-          if (fallbackSub.ok) dataSub = await fallbackSub.json();
-        }
-      } catch (err) {
-        console.warn('Submissions fetch fallback note:', err);
-      }
-
-      try {
-        if (resAlerts && resAlerts.ok) {
-          dataAlerts = await resAlerts.json();
-        } else {
-          const fallbackAlerts = await fetch(`/alerts?${cacheBuster}`, {
-            headers: { 'x-user-email': TEACHER_EMAIL, 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
-            cache: 'no-store',
-          });
-          if (fallbackAlerts.ok) dataAlerts = await fallbackAlerts.json();
-        }
-      } catch (err) {
-        console.warn('Alerts fetch fallback note:', err);
-      }
-
-      if (dataSub && dataSub.success && dataSub.submissions) {
-        setSubmissions(dataSub.submissions);
-      }
-      if (dataAlerts && dataAlerts.success && dataAlerts.alerts) {
-        setAlerts(dataAlerts.alerts);
-      }
+      setSubmissions(subs);
+      setAlerts(alts);
+      showToast('최신 답안과 알림을 불러왔습니다.');
     } catch (err) {
       console.error('Failed to load submissions or alerts:', err);
+      showToast('데이터를 불러오는 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchSubmissionsAndAlerts();
-    const interval = setInterval(fetchSubmissionsAndAlerts, 5000); // 5s auto poll for rapid feedback
-    return () => clearInterval(interval);
-  }, [currentUserEmail]);
+    if (!isAuthorizedTeacher) return;
+    setLoading(true);
+    const unsubSubs = subscribeSubmissions(
+      (list) => {
+        setSubmissions(list);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Submissions listener error:', err);
+        setLoading(false);
+      }
+    );
+    const unsubAlerts = subscribeAlerts(
+      (list) => {
+        setAlerts(list);
+      },
+      (err) => {
+        console.error('Alerts listener error:', err);
+      }
+    );
+    return () => {
+      unsubSubs();
+      unsubAlerts();
+    };
+  }, [currentUserEmail, isAuthorizedTeacher]);
 
   // Handle actual confirmed deletion without window.confirm
   const handleExecuteDelete = async () => {
@@ -176,39 +151,23 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
     try {
       if (itemToDelete.type === 'submission') {
-        const res = await fetch(`/api/submissions/${itemToDelete.id}`, {
-          method: 'DELETE',
-          headers: { 'x-user-email': TEACHER_EMAIL }
-        });
-        const data = await res.json();
-        if (data.success) {
-          setSubmissions((prev) => prev.filter((s) => s.id !== itemToDelete.id));
-          if (selectedSub?.id === itemToDelete.id) {
-            setSelectedSub(null);
-          }
-          showToast('해당 학생의 제출 기록이 성공적으로 삭제되었습니다.');
-        } else {
-          showToast(data.error || '삭제에 실패했습니다.');
+        await deleteSubmissionInFirestore(itemToDelete.id);
+        setSubmissions((prev) => prev.filter((s) => s.id !== itemToDelete.id));
+        if (selectedSub?.id === itemToDelete.id) {
+          setSelectedSub(null);
         }
+        showToast('해당 학생의 제출 기록이 성공적으로 삭제되었습니다.');
       } else {
-        const res = await fetch(`/api/alerts/${itemToDelete.id}`, {
-          method: 'DELETE',
-          headers: { 'x-user-email': TEACHER_EMAIL }
-        });
-        const data = await res.json();
-        if (data.success) {
-          setAlerts((prev) => prev.filter((a) => a.id !== itemToDelete.id));
-          if (viewingAlert?.id === itemToDelete.id) {
-            setViewingAlert(null);
-          }
-          showToast('해당 보안 알림이 성공적으로 삭제되었습니다.');
-        } else {
-          showToast(data.error || '삭제에 실패했습니다.');
+        await deleteAlertInFirestore(itemToDelete.id);
+        setAlerts((prev) => prev.filter((a) => a.id !== itemToDelete.id));
+        if (viewingAlert?.id === itemToDelete.id) {
+          setViewingAlert(null);
         }
+        showToast('해당 보안 알림이 성공적으로 삭제되었습니다.');
       }
     } catch (err) {
       console.error('Delete error:', err);
-      showToast('삭제 중 네트워크 오류가 발생했습니다.');
+      showToast('삭제 중 오류가 발생했습니다. 권한을 확인해 주세요.');
     } finally {
       setIsDeleting(false);
       setItemToDelete(null);

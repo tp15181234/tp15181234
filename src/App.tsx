@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { Navbar } from './components/Navbar';
 import { QuizView } from './components/QuizView';
 import { FlowchartLab } from './components/FlowchartLab';
@@ -11,9 +12,10 @@ import { PrintExamModal } from './components/PrintExamModal';
 import { AccessLock, StudentAuthInfo } from './components/AccessLock';
 import { TeacherDashboard } from './components/TeacherDashboard';
 import { GoogleAuthModal, GoogleUser, TEACHER_EMAIL } from './components/GoogleAuthModal';
+import { auth, subscribeSubmissions } from './firebase';
 import { INITIAL_QUESTIONS } from './data/questionBank';
-import { Question, TopicType } from './types/quiz';
-import { BookOpen, Layers, Lock, ShieldCheck, Cpu } from 'lucide-react';
+import { TopicType } from './types/quiz';
+import { BookOpen, Layers, Lock, Cpu } from 'lucide-react';
 
 export default function App() {
   // Password gatekeeper lock state (Code: 15181234) - Always locked on launch/refresh
@@ -25,25 +27,42 @@ export default function App() {
     studentName: '',
   });
 
-  // Clear any previously persisted lock state from old sessions
+  // Clear any legacy localStorage state from older versions
   useEffect(() => {
     try {
       localStorage.removeItem('class_exam_pass_1_5');
+      localStorage.removeItem('google_auth_user');
     } catch {
       // Ignore
     }
   }, []);
 
-  // Google Authentication State
-  const [currentUser, setCurrentUser] = useState<GoogleUser | null>(() => {
-    try {
-      const stored = localStorage.getItem('google_auth_user');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  });
+  // Real Firebase Authentication State
+  const [currentUser, setCurrentUser] = useState<GoogleUser | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser && fbUser.email) {
+        const email = fbUser.email.trim().toLowerCase();
+        const isTeacherEmail = email === TEACHER_EMAIL.toLowerCase();
+        setCurrentUser({
+          uid: fbUser.uid,
+          email,
+          name: isTeacherEmail
+            ? '정보 선생님'
+            : fbUser.displayName || email.split('@')[0] || '사용자',
+          picture: fbUser.photoURL || undefined,
+          role: isTeacherEmail ? 'teacher' : 'student',
+        });
+      } else {
+        setCurrentUser(null);
+      }
+      setIsAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const isTeacher = Boolean(
     currentUser && currentUser.email.trim().toLowerCase() === TEACHER_EMAIL.toLowerCase()
@@ -56,69 +75,48 @@ export default function App() {
   const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
   const [submissionCount, setSubmissionCount] = useState(0);
 
-  // Poll submission count strictly for teacher (tp15181234@gmail.com)
-  const fetchSubmissionCount = async () => {
-    if (!isTeacher) return;
-    try {
-      let res = await fetch(`/api/submissions/count?_t=${Date.now()}`, {
-        headers: {
-          'x-user-email': TEACHER_EMAIL,
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-        },
-        cache: 'no-store',
-      });
-      if (!res.ok) {
-        res = await fetch(`/submissions/count?_t=${Date.now()}`, {
-          headers: {
-            'x-user-email': TEACHER_EMAIL,
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache',
-          },
-          cache: 'no-store',
-        });
-      }
-      const data = await res.json();
-      if (data.success && typeof data.count === 'number') {
-        setSubmissionCount(data.count);
-      }
-    } catch {
-      // Ignore background network error
-    }
-  };
-
+  // Real-time Cloud Firestore submission count strictly for authenticated teacher
   useEffect(() => {
-    if (isUnlocked && isTeacher) {
-      fetchSubmissionCount();
-      const interval = setInterval(fetchSubmissionCount, 5000);
-      return () => clearInterval(interval);
-    } else {
+    if (!isUnlocked || !isTeacher || !isAuthReady) {
       setSubmissionCount(0);
-      setIsTeacherModalOpen(false);
+      if (!isTeacher) {
+        setIsTeacherModalOpen(false);
+      }
+      return;
     }
-  }, [isUnlocked, isTeacher]);
+
+    const unsubscribe = subscribeSubmissions(
+      (list) => {
+        setSubmissionCount(list.length);
+      },
+      (err) => {
+        console.warn('Submission count listener note:', err.message);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [isUnlocked, isTeacher, isAuthReady]);
 
   const handleLogin = (user: GoogleUser) => {
     setCurrentUser(user);
-    try {
-      localStorage.setItem('google_auth_user', JSON.stringify(user));
-    } catch (e) {
-      console.error(e);
-    }
   };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
+  const handleLogout = async () => {
     setIsTeacherModalOpen(false);
     try {
-      localStorage.removeItem('google_auth_user');
+      await signOut(auth);
+      setCurrentUser(null);
     } catch (e) {
-      console.error(e);
+      console.error('Sign out error:', e);
     }
   };
 
   const handleLock = () => {
-    localStorage.removeItem('class_exam_pass_1_5');
+    try {
+      localStorage.removeItem('class_exam_pass_1_5');
+    } catch {
+      // Ignore
+    }
     setIsUnlocked(false);
   };
 

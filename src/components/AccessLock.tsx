@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, ShieldCheck, AlertCircle, ArrowRight, KeyRound, User, Hash } from 'lucide-react';
 import { isAuthorized1Class5, SECRET_GATE_PIN } from '../data/classRoster';
+import { saveUnauthorizedAlertToFirestore } from '../firebase';
 
 export interface StudentAuthInfo {
   grade: string;
@@ -57,41 +58,18 @@ export const AccessLock: React.FC<AccessLockProps> = ({ onUnlock }) => {
     const isAuthorized = isAuthorized1Class5(trimmedGrade, trimmedClass, trimmedName);
 
     // 4. Silent Teacher Notification: If external student (other class or unauthorized name),
-    // silently notify teacher email without showing ANY alert or hint to the student.
+    // silently record directly to persistent Cloud Firestore so teacher sees it on any device/Vercel.
     if (!isAuthorized) {
-      const alertPayload = JSON.stringify({
-        grade: trimmedGrade,
-        classNum: trimmedClass,
-        studentNumber: trimmedNum,
-        studentName: trimmedName,
-        eventType: 'GATEKEEPER_ENTRY',
-      });
       try {
-        const res = await fetch('/api/alerts/unauthorized', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          keepalive: true,
-          body: alertPayload,
+        await saveUnauthorizedAlertToFirestore({
+          grade: trimmedGrade,
+          classNum: trimmedClass,
+          studentNumber: trimmedNum,
+          studentName: trimmedName,
+          eventType: 'GATEKEEPER_ENTRY',
         });
-        if (!res.ok) {
-          await fetch('/alerts/unauthorized', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            keepalive: true,
-            body: alertPayload,
-          }).catch(() => null);
-        }
       } catch {
-        try {
-          await fetch('/alerts/unauthorized', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            keepalive: true,
-            body: alertPayload,
-          });
-        } catch {
-          // Silently ignore background network errors
-        }
+        // Silently ignore background network errors so student sees no hint
       }
     }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Question, TopicType } from '../types/quiz';
 import { CheckCircle2, AlertCircle, Sparkles, Clock, HelpCircle, ArrowRight, ArrowLeft, RotateCcw, BookOpen, Award } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { saveSubmissionToFirestore } from '../firebase';
 
 interface QuizViewProps {
   questions: Question[];
@@ -160,7 +161,18 @@ export const QuizView: React.FC<QuizViewProps> = ({
     setIsSubmitting(true);
     try {
       const timeSpent = Math.max(1, 50 * 60 - secondsLeft);
-      const payload = {
+      const topicScores: Record<string, { correct: number; total: number }> = {};
+      filteredQuestions.forEach((q) => {
+        if (!topicScores[q.topic]) {
+          topicScores[q.topic] = { correct: 0, total: 0 };
+        }
+        topicScores[q.topic].total += 1;
+        if (userAnswers[q.id] === q.correctIndex) {
+          topicScores[q.topic].correct += 1;
+        }
+      });
+
+      await saveSubmissionToFirestore({
         grade: targetGrade,
         classNum: targetClass,
         studentName: targetName,
@@ -170,63 +182,14 @@ export const QuizView: React.FC<QuizViewProps> = ({
         correctCount,
         timeSpentSeconds: timeSpent,
         userAnswers,
-      };
+        topicScores,
+      });
 
-      // Client-side persistent backup
-      try {
-        localStorage.setItem('my_last_exam_submission', JSON.stringify({
-          ...payload,
-          submittedAt: new Date().toISOString(),
-        }));
-      } catch {}
-
-      // Resilient submission: try /api/submissions first, fallback to /submissions
-      let res: Response | null = null;
-      try {
-        res = await fetch('/api/submissions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          keepalive: true,
-          body: JSON.stringify(payload),
-        });
-      } catch (networkErr) {
-        console.warn('Initial /api/submissions failed, trying /submissions fallback:', networkErr);
-      }
-
-      const contentType = res ? (res.headers.get('content-type') || '') : '';
-      if (!res || !res.ok || !contentType.includes('application/json')) {
-        try {
-          res = await fetch('/submissions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            keepalive: true,
-            body: JSON.stringify(payload),
-          });
-        } catch (fallbackErr) {
-          console.warn('Fallback /submissions also encountered error:', fallbackErr);
-        }
-      }
-
-      if (res && res.ok) {
-        const data = await res.json().catch(() => null);
-        if (data && data.success) {
-          setSubmittedToTeacher(true);
-          setShowSubmitModal(false);
-          return;
-        } else if (data && data.error) {
-          setSubmitError(data.error);
-          return;
-        }
-      }
-
-      // If both endpoints failed, mark safe backup
       setSubmittedToTeacher(true);
       setShowSubmitModal(false);
-    } catch (err) {
-      console.error('Submission error:', err);
-      // Ensure the student can proceed without losing their exam completion
-      setSubmittedToTeacher(true);
-      setShowSubmitModal(false);
+    } catch (err: any) {
+      console.error('Submission failed:', err);
+      setSubmitError('답안 전송 중 오류가 발생했습니다. 네트워크 연결 확인 후 다시 시도해 주세요.');
     } finally {
       setIsSubmitting(false);
     }

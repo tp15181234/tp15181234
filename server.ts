@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -40,6 +41,31 @@ if (process.env.GEMINI_API_KEY) {
       },
     },
   });
+}
+
+async function generateContentWithFallback(
+  params: Omit<Parameters<GoogleGenAI['models']['generateContent']>[0], 'model'>,
+  timeoutMs = 25000
+) {
+  if (!ai) {
+    throw new Error('GEMINI_API_KEY not configured');
+  }
+  const modelsToTry = ['gemini-4-hydrogen', 'gemini-2.5-flash'];
+  let lastError: unknown;
+  for (const model of modelsToTry) {
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`AI request timeout (${model})`)), timeoutMs)
+      );
+      return await Promise.race([
+        ai.models.generateContent({ ...params, model }),
+        timeoutPromise,
+      ]);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
 }
 
 // System prompt for question generation tailored to Korean Middle/High School Informatics curriculum
@@ -314,12 +340,8 @@ function getFallbackQuestions(requestedTopics: string[], requestedCount: number)
   }));
 }
 
-// Express Router supporting both /api/... and direct /... paths for seamless Vercel & local compatibility
-const apiRouter = express.Router();
-apiRouter.use(express.json());
-
 // API: Generate Questions
-apiRouter.post(['/generate-questions', '/api/generate-questions'], async (req: Request, res: Response) => {
+app.post('/api/generate-questions', async (req: Request, res: Response) => {
   const { topics = ['자연어 처리', '기계학습', '순서도 도형', '실생활 모델링', '파이썬 입출력·자료형', 'if·elif 조건문', 'for·while 반복문'], count = 5, difficulty = '보통', customPrompt = '' } = req.body;
   const targetCount = Math.min(Math.max(Number(count) || 5, 1), 10);
 
@@ -345,12 +367,7 @@ apiRouter.post(['/generate-questions', '/api/generate-questions'], async (req: R
   5. 추가 요청사항: ${customPrompt || '기출 변형 및 신유형 중심의 완성도 높은 5지선다형 객관식 문제'}
 반드시 제공된 JSON 스키마를 엄격히 준수하여 응답하세요.`;
 
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('AI generation timeout')), 45000)
-    );
-
-    const generatePromise = ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+    const response: any = await generateContentWithFallback({
       contents: promptText,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
@@ -388,9 +405,7 @@ apiRouter.post(['/generate-questions', '/api/generate-questions'], async (req: R
           required: ['questions']
         }
       }
-    });
-
-    const response: any = await Promise.race([generatePromise, timeoutPromise]);
+    }, 24000);
 
     const parsed = JSON.parse(response.text || '{"questions": []}');
     if (parsed.questions && parsed.questions.length > 0) {
@@ -412,14 +427,14 @@ apiRouter.post(['/generate-questions', '/api/generate-questions'], async (req: R
 });
 
 // API: Explain Question
-apiRouter.post(['/explain-question', '/api/explain-question'], async (req: Request, res: Response) => {
+app.post('/api/explain-question', async (req: Request, res: Response) => {
   try {
     const { question, choices, answer, studentChoice, topic } = req.body;
 
     if (!ai) {
       return res.status(200).json({
         success: false,
-        explanation: 'AI 서비스가 준비 중입니다. 기본 문제 해설을 참고해 주세요.'
+        explanation: ''
       });
     }
 
@@ -432,23 +447,22 @@ apiRouter.post(['/explain-question', '/api/explain-question'], async (req: Reque
 
 학생이 왜 정답이 ${answer}인지 쉽게 이해할 수 있도록 중학생·고등학생 눈높이에서 단계별로 친절하게 설명해 주세요. 학생이 헷갈리기 쉬운 함정(예: input은 문자열이라는 점, range의 끝 번호 미포함, 순서도 마름모는 조건문이라는 점 등)을 짚어주세요.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response: any = await generateContentWithFallback({
       contents: prompt,
       config: {
         systemInstruction: '당신은 따뜻하고 명쾌하게 설명해주는 대한민국 학교 정보 선생님입니다. 핵심을 3단계로 알기 쉽게 설명해 주세요.',
       }
-    });
+    }, 20000);
 
     return res.json({ success: true, explanation: response.text });
   } catch (err: any) {
     console.error('Gemini explanation error:', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(200).json({ success: false, explanation: '' });
   }
 });
 
 // API: Python virtual trace / simulation helper
-apiRouter.post(['/simulate-python', '/api/simulate-python'], async (req: Request, res: Response) => {
+app.post('/api/simulate-python', async (req: Request, res: Response) => {
   try {
     const { code, simulatedInput = '' } = req.body;
 
@@ -469,8 +483,7 @@ ${code}
 
 출력 결과와 각 단계별 변수들의 값 변화를 JSON 형태로 알려주세요.`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const response: any = await generateContentWithFallback({
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
@@ -496,7 +509,7 @@ ${code}
           required: ['output', 'hasError']
         }
       }
-    });
+    }, 20000);
 
     const parsed = JSON.parse(response.text || '{}');
     return res.json({ success: true, ...parsed });
@@ -505,8 +518,7 @@ ${code}
   }
 });
 
-// In-memory & file-backed store for student test submissions
-import fs from 'fs';
+// In-memory & file-backed store for student test submissions (legacy local fallback)
 
 const DATA_DIR = process.env.VERCEL ? path.resolve('/tmp', 'data') : path.resolve(__dirname, 'data');
 const SUBMISSIONS_FILE = path.resolve(DATA_DIR, 'submissions.json');
@@ -668,7 +680,7 @@ function recordUnauthorizedAlert(payload: {
 }
 
 // API: Get all submissions for teacher (tp15181234@gmail.com)
-apiRouter.get(['/submissions', '/api/submissions'], (req: Request, res: Response) => {
+app.get('/api/submissions', (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
@@ -686,7 +698,7 @@ apiRouter.get(['/submissions', '/api/submissions'], (req: Request, res: Response
 });
 
 // API: Submission count endpoint
-apiRouter.get(['/submissions/count', '/api/submissions/count'], (req: Request, res: Response) => {
+app.get('/api/submissions/count', (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
@@ -700,7 +712,7 @@ apiRouter.get(['/submissions/count', '/api/submissions/count'], (req: Request, r
 });
 
 // API: Get all unauthorized class alerts
-apiRouter.get(['/alerts', '/api/alerts'], (req: Request, res: Response) => {
+app.get('/api/alerts', (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
@@ -718,7 +730,7 @@ apiRouter.get(['/alerts', '/api/alerts'], (req: Request, res: Response) => {
 });
 
 // API: Delete all alerts at once (휴지통 한 번에 비우기)
-apiRouter.delete(['/alerts/all', '/api/alerts/all'], (req: Request, res: Response) => {
+app.delete('/api/alerts/all', (req: Request, res: Response) => {
   try {
     const userEmail = String(req.headers['x-user-email'] || req.query.email || '').trim().toLowerCase();
     if (userEmail !== TEACHER_EMAIL.toLowerCase()) {
@@ -735,7 +747,7 @@ apiRouter.delete(['/alerts/all', '/api/alerts/all'], (req: Request, res: Respons
 });
 
 // API: Delete an alert
-apiRouter.delete(['/alerts/:id', '/api/alerts/:id'], (req: Request, res: Response) => {
+app.delete('/api/alerts/:id', (req: Request, res: Response) => {
   try {
     const userEmail = String(req.headers['x-user-email'] || req.query.email || '').trim().toLowerCase();
     if (userEmail !== TEACHER_EMAIL.toLowerCase()) {
@@ -755,7 +767,7 @@ apiRouter.delete(['/alerts/:id', '/api/alerts/:id'], (req: Request, res: Respons
 });
 
 // API: Report unauthorized non-5 class access in real-time
-apiRouter.post(['/alerts/unauthorized', '/api/alerts/unauthorized'], (req: Request, res: Response) => {
+app.post('/api/alerts/unauthorized', (req: Request, res: Response) => {
   try {
     const {
       grade = '1',
@@ -790,7 +802,7 @@ apiRouter.post(['/alerts/unauthorized', '/api/alerts/unauthorized'], (req: Reque
 });
 
 // API: Handle Google Login detection (simple acknowledgement, no false alerts)
-apiRouter.post(['/alerts/login', '/api/alerts/login'], (req: Request, res: Response) => {
+app.post('/api/alerts/login', (req: Request, res: Response) => {
   try {
     const { email = '' } = req.body;
     const trimmedEmail = String(email).trim().toLowerCase();
@@ -802,7 +814,7 @@ apiRouter.post(['/alerts/login', '/api/alerts/login'], (req: Request, res: Respo
 });
 
 // API: Submit student exam answers
-apiRouter.post(['/submissions', '/api/submissions'], (req: Request, res: Response) => {
+app.post('/api/submissions', (req: Request, res: Response) => {
   try {
     const {
       grade = '1',
@@ -876,7 +888,7 @@ apiRouter.post(['/submissions', '/api/submissions'], (req: Request, res: Respons
 });
 
 // API: Delete all submissions (전체 제출 답안 비우기)
-apiRouter.delete(['/submissions/all', '/api/submissions/all'], (req: Request, res: Response) => {
+app.delete('/api/submissions/all', (req: Request, res: Response) => {
   try {
     const userEmail = String(req.headers['x-user-email'] || req.query.email || '').trim().toLowerCase();
     if (userEmail !== TEACHER_EMAIL.toLowerCase()) {
@@ -893,7 +905,7 @@ apiRouter.delete(['/submissions/all', '/api/submissions/all'], (req: Request, re
 });
 
 // API: Delete a single submission
-apiRouter.delete(['/submissions/:id', '/api/submissions/:id'], (req: Request, res: Response) => {
+app.delete('/api/submissions/:id', (req: Request, res: Response) => {
   try {
     const userEmail = String(req.headers['x-user-email'] || req.query.email || '').trim().toLowerCase();
     if (userEmail !== TEACHER_EMAIL.toLowerCase()) {
@@ -912,17 +924,13 @@ apiRouter.delete(['/submissions/:id', '/api/submissions/:id'], (req: Request, re
   }
 });
 
-// Mount apiRouter at BOTH '/api' and root '/'
-// This guarantees that whether Vercel keeps /api or strips /api, all routes match perfectly!
-app.use('/api', apiRouter);
-app.use('/', apiRouter);
-
 // Setup Vite middleware or static serving
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
 
-  if (!isProd) {
-    const { createServer: createViteServer } = await import('vite');
+  if (!isProd && !process.env.VERCEL) {
+    const vitePkg = 'vite';
+    const { createServer: createViteServer } = await import(vitePkg);
     const vite = await createViteServer({
       server: { middlewareMode: true, hmr: false },
       appType: 'spa',

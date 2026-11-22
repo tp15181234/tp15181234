@@ -1,0 +1,127 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny all by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Reusable Security Primitives ---
+    function isValidId(id) {
+      return id is string && id.size() >= 4 && id.size() <= 80 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isTeacher() {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email == 'tp15181234@gmail.com';
+    }
+
+    // --- Entity Validation Blueprints ---
+    function isValidSubmission(data, docId) {
+      return data.keys().hasAll([
+          'id', 'grade', 'classNum', 'studentName', 'studentNumber',
+          'isUnauthorizedClass', 'score', 'totalQuestions', 'correctCount',
+          'timeSpentSeconds', 'userAnswers', 'submittedAt', 'createdAt',
+          'targetTeacherEmail'
+        ])
+        && data.keys().hasOnly([
+          'id', 'grade', 'classNum', 'studentName', 'studentNumber',
+          'isUnauthorizedClass', 'score', 'totalQuestions', 'correctCount',
+          'timeSpentSeconds', 'userAnswers', 'topicScores', 'submittedAt',
+          'createdAt', 'targetTeacherEmail'
+        ])
+        && data.id is string && data.id == docId
+        && data.grade is string && data.grade.size() >= 1 && data.grade.size() <= 10
+        && data.classNum is string && data.classNum.size() >= 1 && data.classNum.size() <= 10
+        && data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 40
+        && data.studentNumber is string && data.studentNumber.size() >= 1 && data.studentNumber.size() <= 10
+        && data.isUnauthorizedClass is bool
+        && data.score is number && data.score >= 0 && data.score <= 100
+        && data.totalQuestions is number && data.totalQuestions >= 0 && data.totalQuestions <= 200
+        && data.correctCount is number && data.correctCount >= 0 && data.correctCount <= 200
+        && data.timeSpentSeconds is number && data.timeSpentSeconds >= 0 && data.timeSpentSeconds <= 86400
+        && data.userAnswers is map && data.userAnswers.size() <= 200
+        && (!('topicScores' in data) || (data.topicScores is map && data.topicScores.size() <= 30))
+        && data.submittedAt is string && data.submittedAt.size() >= 10 && data.submittedAt.size() <= 40
+        && data.targetTeacherEmail is string && data.targetTeacherEmail == 'tp15181234@gmail.com';
+    }
+
+    function isValidAlert(data, docId) {
+      return data.keys().hasAll([
+          'id', 'grade', 'classNum', 'studentNumber', 'studentName',
+          'eventType', 'emailRecipient', 'emailSubject', 'emailBody',
+          'emailStatus', 'timestamp', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'grade', 'classNum', 'studentNumber', 'studentName',
+          'eventType', 'score', 'emailRecipient', 'emailSubject', 'emailBody',
+          'emailStatus', 'timestamp', 'createdAt'
+        ])
+        && data.id is string && data.id == docId
+        && data.grade is string && data.grade.size() <= 10
+        && data.classNum is string && data.classNum.size() <= 10
+        && data.studentNumber is string && data.studentNumber.size() <= 10
+        && data.studentName is string && data.studentName.size() <= 40
+        && data.eventType is string && (data.eventType == 'GATEKEEPER_ENTRY' || data.eventType == 'SUBMISSION')
+        && (!('score' in data) || data.score == null || (data.score is number && data.score >= 0 && data.score <= 100))
+        && data.emailRecipient is string && data.emailRecipient == 'tp15181234@gmail.com'
+        && data.emailSubject is string && data.emailSubject.size() <= 160
+        && data.emailBody is string && data.emailBody.size() <= 500
+        && data.emailStatus is string && data.emailStatus == 'RECORDED'
+        && data.timestamp is string && data.timestamp.size() >= 10 && data.timestamp.size() <= 40;
+    }
+
+    // --- Collection Rules ---
+
+    // Connection health check document
+    match /test/connection {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    // Student exam submissions:
+    // Students submit without Google login via shared link; ONLY the verified teacher can read/list/delete.
+    match /submissions/{submissionId} {
+      allow get: if isTeacher();
+      allow list: if isTeacher() && resource.data.targetTeacherEmail == 'tp15181234@gmail.com';
+      allow create: if isValidId(submissionId)
+        && isValidSubmission(incoming(), submissionId)
+        && incoming().createdAt == request.time;
+      allow update: if isTeacher()
+        && isValidId(submissionId)
+        && isValidSubmission(incoming(), submissionId)
+        && incoming().createdAt == existing().createdAt;
+      allow delete: if isTeacher() && isValidId(submissionId);
+    }
+
+    // Unauthorized class access/submission alerts:
+    // Recorded silently on unauthorized attempt; ONLY the verified teacher can read/list/delete.
+    match /unauthorized_alerts/{alertId} {
+      allow get: if isTeacher();
+      allow list: if isTeacher() && resource.data.emailRecipient == 'tp15181234@gmail.com';
+      allow create: if isValidId(alertId)
+        && isValidAlert(incoming(), alertId)
+        && incoming().createdAt == request.time;
+      allow update: if isTeacher()
+        && isValidId(alertId)
+        && isValidAlert(incoming(), alertId)
+        && incoming().createdAt == existing().createdAt;
+      allow delete: if isTeacher() && isValidId(alertId);
+    }
+  }
+}

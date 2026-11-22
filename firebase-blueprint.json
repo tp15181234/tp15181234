@@ -1,0 +1,204 @@
+{
+  "entities": {
+    "Submission": {
+      "title": "Submission",
+      "description": "Student exam submission record stored in Firestore for teacher review.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique submission identifier",
+          "minLength": 4,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "grade": {
+          "type": "string",
+          "description": "Student grade level",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "classNum": {
+          "type": "string",
+          "description": "Student class number",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "studentName": {
+          "type": "string",
+          "description": "Student full name",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "studentNumber": {
+          "type": "string",
+          "description": "Student attendance number",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "isUnauthorizedClass": {
+          "type": "boolean",
+          "description": "True if student is outside Class 1-5 roster"
+        },
+        "score": {
+          "type": "number",
+          "description": "Exam percentage score (0-100)"
+        },
+        "totalQuestions": {
+          "type": "number",
+          "description": "Total number of exam questions"
+        },
+        "correctCount": {
+          "type": "number",
+          "description": "Count of correct answers"
+        },
+        "timeSpentSeconds": {
+          "type": "number",
+          "description": "Total seconds spent on exam"
+        },
+        "userAnswers": {
+          "type": "object",
+          "description": "Map of question IDs to selected choice indices"
+        },
+        "topicScores": {
+          "type": "object",
+          "description": "Map of topic breakdown scores"
+        },
+        "submittedAt": {
+          "type": "string",
+          "description": "ISO 8601 timestamp string of submission",
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of creation"
+        },
+        "targetTeacherEmail": {
+          "type": "string",
+          "description": "Target teacher email address",
+          "maxLength": 60
+        }
+      },
+      "required": [
+        "id",
+        "grade",
+        "classNum",
+        "studentName",
+        "studentNumber",
+        "isUnauthorizedClass",
+        "score",
+        "totalQuestions",
+        "correctCount",
+        "timeSpentSeconds",
+        "userAnswers",
+        "submittedAt",
+        "createdAt",
+        "targetTeacherEmail"
+      ]
+    },
+    "UnauthorizedAlert": {
+      "title": "UnauthorizedAlert",
+      "description": "Silent security alert generated when a non-1-5 student accesses or submits.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique alert identifier",
+          "minLength": 4,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "grade": {
+          "type": "string",
+          "description": "Entered grade level",
+          "maxLength": 10
+        },
+        "classNum": {
+          "type": "string",
+          "description": "Entered class number",
+          "maxLength": 10
+        },
+        "studentNumber": {
+          "type": "string",
+          "description": "Entered attendance number",
+          "maxLength": 10
+        },
+        "studentName": {
+          "type": "string",
+          "description": "Entered student name",
+          "maxLength": 40
+        },
+        "eventType": {
+          "type": "string",
+          "description": "Type of unauthorized event",
+          "enum": ["GATEKEEPER_ENTRY", "SUBMISSION"],
+          "maxLength": 30
+        },
+        "score": {
+          "type": "number",
+          "description": "Exam score if eventType is SUBMISSION"
+        },
+        "emailRecipient": {
+          "type": "string",
+          "description": "Teacher email recipient",
+          "maxLength": 60
+        },
+        "emailSubject": {
+          "type": "string",
+          "description": "Alert subject summary",
+          "maxLength": 160
+        },
+        "emailBody": {
+          "type": "string",
+          "description": "Alert body summary",
+          "maxLength": 500
+        },
+        "emailStatus": {
+          "type": "string",
+          "description": "Alert status",
+          "enum": ["RECORDED"],
+          "maxLength": 20
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO 8601 timestamp string",
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of creation"
+        }
+      },
+      "required": [
+        "id",
+        "grade",
+        "classNum",
+        "studentNumber",
+        "studentName",
+        "eventType",
+        "emailRecipient",
+        "emailSubject",
+        "emailBody",
+        "emailStatus",
+        "timestamp",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/submissions/{submissionId}": {
+      "schema": {
+        "$ref": "#/entities/Submission"
+      },
+      "description": "Exam submissions created by students and read/deleted exclusively by the authenticated teacher."
+    },
+    "/unauthorized_alerts/{alertId}": {
+      "schema": {
+        "$ref": "#/entities/UnauthorizedAlert"
+      },
+      "description": "Silent security alerts created when unauthorized class info is entered, read/deleted exclusively by the teacher."
+    }
+  }
+}
