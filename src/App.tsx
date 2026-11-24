@@ -22,7 +22,7 @@ export default function App() {
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
   const [studentInfo, setStudentInfo] = useState<StudentAuthInfo>({
     grade: '1',
-    classNum: '5',
+    classNum: '',
     studentNumber: '',
     studentName: '',
   });

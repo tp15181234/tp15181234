@@ -49,7 +49,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
   // Student identification state (학년, 반, 번호, 이름) - Pre-filled from initial gatekeeper
   const [grade, setGrade] = useState(initialStudentInfo?.grade || '1');
-  const [classNum, setClassNum] = useState(initialStudentInfo?.classNum || '5');
+  const [classNum, setClassNum] = useState(initialStudentInfo?.classNum || '');
   const [studentName, setStudentName] = useState(initialStudentInfo?.studentName || '');
   const [studentNumber, setStudentNumber] = useState(initialStudentInfo?.studentNumber || '');
   const [showSubmitModal, setShowSubmitModal] = useState(false);

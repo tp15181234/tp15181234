@@ -17,7 +17,7 @@ interface AccessLockProps {
 export const AccessLock: React.FC<AccessLockProps> = ({ onUnlock }) => {
   // Student identification inputs (Required before gatekeeper unlock)
   const [grade, setGrade] = useState('1');
-  const [classNum, setClassNum] = useState('5');
+  const [classNum, setClassNum] = useState('');
   const [studentNumber, setStudentNumber] = useState('');
   const [studentName, setStudentName] = useState('');
 
@@ -135,9 +135,9 @@ export const AccessLock: React.FC<AccessLockProps> = ({ onUnlock }) => {
                 <input
                   type="text"
                   value={classNum}
-                  onChange={(e) => setClassNum(e.target.value)}
-                  placeholder="5"
-                  className="w-full text-center py-2 px-2.5 text-xs bg-slate-950 border border-slate-700 rounded-lg text-white font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  onChange={(e) => setClassNum(e.target.value.replace(/[^0-9]/g, ''))}
+                  placeholder="반 입력"
+                  className="w-full text-center py-2 px-2.5 text-xs bg-slate-950 border border-slate-700 rounded-lg text-white placeholder:text-slate-600 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
 
