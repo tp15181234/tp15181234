@@ -7,7 +7,7 @@ import { ModelingLab } from './components/ModelingLab';
 import { MachineLearningLab } from './components/MachineLearningLab';
 import { PythonSandbox } from './components/PythonSandbox';
 import { CheatSheet } from './components/CheatSheet';
-import { AiQuestionMaker } from './components/AiQuestionMaker';
+import { NeuralNetworkLab } from './components/NeuralNetworkLab';
 import { PrintExamModal } from './components/PrintExamModal';
 import { AccessLock, StudentAuthInfo } from './components/AccessLock';
 import { TeacherDashboard } from './components/TeacherDashboard';
@@ -15,7 +15,7 @@ import { GoogleAuthModal, GoogleUser, TEACHER_EMAIL } from './components/GoogleA
 import { auth, subscribeSubmissions } from './firebase';
 import { INITIAL_QUESTIONS } from './data/questionBank';
 import { TopicType } from './types/quiz';
-import { BookOpen, Layers, Lock, Cpu } from 'lucide-react';
+import { BookOpen, Layers, Lock, Cpu, Network } from 'lucide-react';
 
 export default function App() {
   // Password gatekeeper lock state (Code: 15181234) - Always locked on launch/refresh
@@ -71,7 +71,6 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<string>('exam');
   const [selectedTopicFilter, setSelectedTopicFilter] = useState<TopicType | 'all'>('all');
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-  const [isAiMakerOpen, setIsAiMakerOpen] = useState(false);
   const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
   const [submissionCount, setSubmissionCount] = useState(0);
 
@@ -139,13 +138,8 @@ export default function App() {
         currentTab={currentTab}
         onSelectTab={(tab) => {
           setCurrentTab(tab);
-          setIsAiMakerOpen(false);
         }}
         onOpenPrint={() => setIsPrintModalOpen(true)}
-        onOpenAiMaker={() => {
-          setCurrentTab('aimaker');
-          setIsAiMakerOpen(true);
-        }}
         onOpenTeacher={() => {
           if (isTeacher) {
             setIsTeacherModalOpen(true);
@@ -183,7 +177,7 @@ export default function App() {
                 </h1>
 
                 <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-                  우리가 배운 <strong>자연어 처리</strong>, <strong>기계학습 (지도·비지도·강화학습)</strong>, <strong>순서도 5대 기호</strong>, <strong>실생활 모델링 (입력·출력·조건·변수 구분)</strong>, 그리고 <strong>파이썬(print, input, int, str, float, if, elif, else, for, while)</strong>을 한 번에 정리하고 실전 문제로 마스터하세요!
+                  우리가 배운 <strong>자연어 처리</strong>, <strong>기계학습 (지도·비지도·강화학습)</strong>, <strong>인공신경망·딥러닝 (ANN·퍼셉트론·MLP·DNN)</strong>, <strong>순서도 5대 기호</strong>, <strong>실생활 모델링 (입력·출력·조건·변수 구분)</strong>, 그리고 <strong>파이썬</strong>을 한 번에 정리하고 실전 문제로 마스터하세요!
                 </p>
               </div>
 
@@ -195,6 +189,14 @@ export default function App() {
                 >
                   <BookOpen className="w-3.5 h-3.5 text-blue-600" />
                   <span>단원별 문제 풀기</span>
+                </button>
+
+                <button
+                  onClick={() => setCurrentTab('ann')}
+                  className="px-3.5 py-2.5 text-xs font-semibold text-white bg-violet-600 rounded-lg hover:bg-violet-700 transition-colors flex items-center justify-center gap-1.5 shadow-xs min-h-[40px]"
+                >
+                  <Network className="w-3.5 h-3.5" />
+                  <span>인공신경망·딥러닝</span>
                 </button>
 
                 <button
@@ -225,9 +227,9 @@ export default function App() {
             {/* 3 Curriculum Highlight Pillar Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 pt-4 border-t border-slate-800 text-xs">
               <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1.5">
-                <div className="font-bold text-blue-400">01. 자연어 처리 & 기계학습</div>
+                <div className="font-bold text-blue-400">01. 자연어 처리 · 기계학습 · 딥러닝</div>
                 <p className="text-slate-400 leading-relaxed text-[11px]">
-                  언어 차이, 토큰화, 불용어 제거 및 기계학습 3대 유형(지도학습: 분류/회귀, 비지도학습: 군집화/연관규칙, 강화학습: 보상) 완벽 대응.
+                  자연어 처리, 기계학습(지도·비지도·강화)과 인공신경망(ANN, 퍼셉트론, 입력·은닉·출력층, 가중치, 활성화 함수, MLP, DNN, 딥러닝) 완벽 대응.
                 </p>
               </div>
 
@@ -282,8 +284,8 @@ export default function App() {
 
         {currentTab === 'cheatsheet' && <CheatSheet />}
 
-        {currentTab === 'aimaker' && (
-          <AiQuestionMaker
+        {currentTab === 'ann' && (
+          <NeuralNetworkLab
             onNavigateTab={(tab) => setCurrentTab(tab)}
           />
         )}
@@ -308,6 +310,7 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[11px] text-slate-400">
             <span>자연어 처리</span>
             <span>기계학습 (지도·비지도·강화)</span>
+            <span>인공신경망·딥러닝</span>
             <span>순서도 5대 도형</span>
             <span>입력·출력·조건·변수</span>
             <span>파이썬 문법·제어문</span>

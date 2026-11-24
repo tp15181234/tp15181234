@@ -282,6 +282,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
     { label: '전체 단원', value: 'all' },
     { label: '자연어 처리', value: '자연어 처리' },
     { label: '기계학습', value: '기계학습' },
+    { label: '인공신경망·딥러닝', value: '인공신경망·딥러닝' },
     { label: '순서도 도형', value: '순서도 도형' },
     { label: '실생활 모델링', value: '실생활 모델링' },
     { label: '파이썬 입출력·자료형', value: '파이썬 입출력·자료형' },

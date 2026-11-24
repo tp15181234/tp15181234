@@ -641,7 +641,7 @@ export const MachineLearningLab: React.FC<MachineLearningLabProps> = ({ onNaviga
                 기계학습 단원별 실전 문제도 바로 풀어보세요!
               </div>
               <p className="text-slate-400 mt-0.5">
-                단원별 문제집에서 기계학습 기출 문제 7문항과 AI가 출제한 신유형 문제를 풀 수 있습니다.
+                단원별 문제집에서 기계학습 기출 문제 7문항과 실전 응용 문제를 풀 수 있습니다.
               </p>
             </div>
             <button

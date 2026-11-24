@@ -6,7 +6,6 @@ interface NavbarProps {
   currentTab: string;
   onSelectTab: (tab: string) => void;
   onOpenPrint: () => void;
-  onOpenAiMaker: () => void;
   onOpenTeacher: () => void;
   onLock: () => void;
   currentUser: GoogleUser | null;
@@ -19,7 +18,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onSelectTab,
   onOpenPrint,
-  onOpenAiMaker,
   onOpenTeacher,
   onLock,
   currentUser,
@@ -34,7 +32,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navItems = [
     { id: 'exam', label: '기말 모의고사' },
     { id: 'topics', label: '단원별 문제집' },
-    { id: 'aimaker', label: 'AI 문제 출제소 ✨' },
+    { id: 'ann', label: '인공신경망·딥러닝 🧠' },
     { id: 'modeling', label: '입·출·조·변 훈련소' },
     { id: 'ml', label: '기계학습 판별소 🤖' },
     { id: 'flowchart', label: '순서도 스튜디오' },

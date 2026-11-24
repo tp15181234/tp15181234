@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { BookOpen, CheckCircle, AlertTriangle, Code, Terminal, GitBranch, Cpu, Sparkles } from 'lucide-react';
+import { BookOpen, CheckCircle, AlertTriangle, Code, Terminal, GitBranch, Cpu, Network } from 'lucide-react';
 
 export const CheatSheet: React.FC = () => {
-  const [activeSection, setActiveSection] = useState<'all' | 'flowchart' | 'modeling' | 'python' | 'nlp' | 'ml'>('all');
+  const [activeSection, setActiveSection] = useState<'all' | 'flowchart' | 'modeling' | 'python' | 'nlp' | 'ml' | 'ann'>('all');
 
   return (
     <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
@@ -14,7 +14,7 @@ export const CheatSheet: React.FC = () => {
               정보 교과 기말고사 벼락치기 핵심 요점정리
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              시험 직전 반드시 확인해야 할 순서도 기호, 실생활 모델링, 파이썬 문법, 자연어 처리, 그리고 기계학습 총정리
+              시험 직전 반드시 확인해야 할 순서도 기호, 실생활 모델링, 파이썬 문법, 자연어 처리, 기계학습, 인공신경망·딥러닝 총정리
             </p>
           </div>
 
@@ -26,6 +26,7 @@ export const CheatSheet: React.FC = () => {
               { id: 'python', label: '파이썬 문법' },
               { id: 'nlp', label: '자연어 처리' },
               { id: 'ml', label: '기계학습 ✨' },
+              { id: 'ann', label: '인공신경망·딥러닝 🧠' },
             ].map((sec) => (
               <button
                 key={sec.id}
@@ -434,6 +435,126 @@ export const CheatSheet: React.FC = () => {
               <div className="p-2.5 rounded bg-white border border-red-200 sm:col-span-2">
                 <strong className="text-red-700 block mb-0.5">⚠️ 함정 3: 마트 영수증 장바구니 분석 = 연관 규칙 (비지도학습)</strong>
                 "기저귀를 사면 맥주도 함께 산다"처럼 어떤 사건이 함께 일어나는지 동시 발생 규칙을 찾는 것은 무조건 <strong>비지도학습의 연관 규칙</strong>입니다!
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Section 6: 인공신경망(ANN) · 퍼셉트론 · 딥러닝 핵심 총정리 */}
+      {(activeSection === 'all' || activeSection === 'ann') && (
+        <div className="bg-white rounded-xl border border-violet-200 p-4 sm:p-6 shadow-xs space-y-5">
+          <div className="flex items-center justify-between pb-2 border-b border-violet-100 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Network className="w-4 h-4 text-violet-600" />
+              <h3 className="text-base font-bold text-slate-900">
+                6. 인공신경망(ANN) · 퍼셉트론 · 심층신경망(DNN) · 딥러닝 총정리
+              </h3>
+            </div>
+            <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-violet-100 text-violet-800">
+              최신 수업 핵심 개념
+            </span>
+          </div>
+
+          {/* 1) ANN & 퍼셉트론 기본 + 포함 관계 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
+            <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 space-y-1.5">
+              <div className="font-bold text-sm text-blue-900">🧠 인공신경망 (ANN, Artificial Neural Network)</div>
+              <p className="text-slate-700 leading-relaxed">
+                사람의 뇌 속 <strong>뉴런(신경세포)</strong>이 서로 연결되어 신호를 주고받으며 학습하는 원리를 본떠 만든 인공지능 모델입니다.
+              </p>
+              <div className="text-[11px] font-bold text-blue-800 bg-white/80 px-2.5 py-1.5 rounded border border-blue-100">
+                포함 관계: 인공지능(AI) ⊃ 기계학습(ML) ⊃ 인공신경망(ANN) ⊃ 딥러닝
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl border border-indigo-200 bg-indigo-50/50 space-y-1.5">
+              <div className="font-bold text-sm text-indigo-900">⚡ 퍼셉트론 (Perceptron)</div>
+              <p className="text-slate-700 leading-relaxed">
+                인공신경망을 이루는 <strong>가장 기본 단위(인공 뉴런)</strong>입니다. 여러 입력에 각각의 <strong>가중치</strong>를 곱해 모두 더한 뒤 <strong>활성화 함수</strong>를 거쳐 하나의 출력을 내보냅니다.
+              </p>
+              <div className="text-[11px] font-mono font-bold text-indigo-800 bg-white/80 px-2.5 py-1.5 rounded border border-indigo-100">
+                입력(x) × 가중치(w)의 합 → 활성화 함수 → 출력(y)
+              </div>
+            </div>
+          </div>
+
+          {/* 2) 4대 구성 요소: 입력층, 가중치, 은닉층, 출력층 + 활성화 함수 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 text-xs">
+            <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-1">
+              <div className="font-bold text-emerald-900">① 입력층 (Input Layer)</div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                외부 데이터(이미지 픽셀, 수치 등)를 신경망으로 <strong>가장 먼저 받아들이는 층</strong>입니다.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/50 space-y-1">
+              <div className="font-bold text-amber-900">② 가중치 (Weight)</div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                각 입력 신호의 <strong>중요도</strong>를 나타내는 곱셈 수치로, 학습을 통해 오차를 줄이도록 계속 조절됩니다.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-violet-200 bg-violet-50/50 space-y-1">
+              <div className="font-bold text-violet-900">③ 은닉층 (Hidden Layer)</div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                입력층과 출력층 사이에서 데이터의 <strong>특징과 패턴을 추출·처리하는 중간층</strong>입니다.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/50 space-y-1">
+              <div className="font-bold text-rose-900">④ 출력층 (Output Layer)</div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                계산을 마친 <strong>최종 예측값·분류 결과</strong>를 외부로 내보내는 마지막 층입니다.
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-xl border border-cyan-200 bg-cyan-50/50 space-y-1">
+              <div className="font-bold text-cyan-900">⑤ 활성화 함수</div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                가중합을 받아 다음 층으로 <strong>신호를 전달할지 여부와 세기</strong>를 결정하는 함수입니다. (예: 계단, 시그모이드, ReLU)
+              </p>
+            </div>
+          </div>
+
+          {/* 3) 다층 퍼셉트론(MLP), 심층 신경망(DNN), 딥러닝 비교 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-1.5">
+              <div className="font-bold text-slate-900">🔹 다층 퍼셉트론 (MLP)</div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                입력층과 출력층 사이에 <strong>은닉층을 1개 이상 추가</strong>한 신경망 구조입니다. 단층 퍼셉트론으로 풀기 힘든 복잡한 비선형 문제도 해결할 수 있습니다.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl border border-violet-200 bg-violet-50/40 space-y-1.5">
+              <div className="font-bold text-violet-900">🔷 심층 신경망 (DNN)</div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                다층 퍼셉트론에서 <strong>은닉층을 여러 개(2개 이상) 깊게</strong> 쌓아 올려 더욱 정교하고 추상적인 특징까지 학습하는 신경망입니다.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl border border-teal-200 bg-teal-50/40 space-y-1.5">
+              <div className="font-bold text-teal-900">🚀 딥러닝 (Deep Learning)</div>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                <strong>심층 신경망(DNN)</strong> 등 여러 층의 인공신경망을 이용해 방대한 데이터로부터 기계가 <strong>스스로 특징을 추출하고 학습</strong>하는 기계학습의 한 분야입니다.
+              </p>
+            </div>
+          </div>
+
+          {/* 시험 단골 함정 포인트 */}
+          <div className="p-4 rounded-xl border border-red-200 bg-red-50/50 space-y-2 text-xs">
+            <div className="flex items-center gap-1.5 font-bold text-red-900">
+              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+              <span>시험에서 헷갈리기 쉬운 핵심 구분 포인트!</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-700">
+              <div className="p-2.5 rounded bg-white border border-red-200">
+                <strong className="text-red-700 block mb-0.5">⚠️ 가중치(Weight) vs 활성화 함수</strong>
+                <strong>가중치</strong>는 입력 신호에 곱해지는 <em>중요도 값(학습으로 수정됨)</em>이고, <strong>활성화 함수</strong>는 그 합을 받아 <em>출력 신호를 결정하는 함수</em>입니다.
+              </div>
+              <div className="p-2.5 rounded bg-white border border-red-200">
+                <strong className="text-red-700 block mb-0.5">⚠️ 은닉층(Hidden) vs 출력층(Output)</strong>
+                <strong>은닉층</strong>은 입력층과 출력층 사이에서 특징을 추출하는 <em>중간 처리층</em>이고, 최종 답을 내보내는 곳은 <strong>출력층</strong>입니다.
               </div>
             </div>
           </div>
